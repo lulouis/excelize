@@ -591,10 +591,10 @@ func flatCols(col xlsxCol, cols []xlsxCol, replacer func(fc, c xlsxCol) xlsxCol)
 //
 func (f *File) positionObjectPixels(sheet string, col, row, x1, y1, width, height int) (int, int, int, int, int, int) {
 	// Adjust start column for offsets that are greater than the col width.
-	for x1 >= f.getColWidth(sheet, col) {
-		x1 -= f.getColWidth(sheet, col)
-		col++
-	}
+	// for x1 >= f.getColWidth(sheet, col) {
+	// 	x1 -= f.getColWidth(sheet, col)
+	// 	col++
+	// }
 
 	// Adjust start row for offsets that are greater than the row height.
 	for y1 >= f.getRowHeight(sheet, row) {
