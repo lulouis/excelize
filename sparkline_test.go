@@ -211,7 +211,7 @@ func TestAddSparkline(t *testing.T) {
 		Negative: true,
 	}))
 
-	// Save spreadsheet by the given path.
+	// Save xlsx file by the given path.
 	assert.NoError(t, f.SaveAs(filepath.Join("test", "TestAddSparkline.xlsx")))
 
 	// Test error exceptions
@@ -253,9 +253,7 @@ func TestAddSparkline(t *testing.T) {
 		Style:    -1,
 	}), `parameter 'Style' must betweent 0-35`)
 
-	ws, ok := f.Sheet.Load("xl/worksheets/sheet1.xml")
-	assert.True(t, ok)
-	ws.(*xlsxWorksheet).ExtLst.Ext = `<extLst>
+	f.Sheet["xl/worksheets/sheet1.xml"].ExtLst.Ext = `<extLst>
 	    <ext x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" uri="{05C60535-1F16-4fd2-B633-F4F36F0B64E0}">
 	        <x14:sparklineGroups
 	            xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main">
@@ -272,7 +270,7 @@ func TestAddSparkline(t *testing.T) {
 }
 
 func TestAppendSparkline(t *testing.T) {
-	// Test unsupported charset.
+	// Test unsupport charset.
 	f := NewFile()
 	ws, err := f.workSheetReader("Sheet1")
 	assert.NoError(t, err)

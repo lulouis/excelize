@@ -3,13 +3,10 @@ package excelize
 import (
 	"bufio"
 	"bytes"
-	"os"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkWrite(b *testing.B) {
@@ -22,12 +19,12 @@ func BenchmarkWrite(b *testing.B) {
 				if err != nil {
 					b.Error(err)
 				}
-				if err := f.SetCellValue("Sheet1", val, s); err != nil {
+				if err := f.SetCellDefault("Sheet1", val, s); err != nil {
 					b.Error(err)
 				}
 			}
 		}
-		// Save spreadsheet by the given path.
+		// Save xlsx file by the given path.
 		err := f.SaveAs("./test.xlsx")
 		if err != nil {
 			b.Error(err)
@@ -36,45 +33,16 @@ func BenchmarkWrite(b *testing.B) {
 }
 
 func TestWriteTo(t *testing.T) {
-	// Test WriteToBuffer err
-	{
-		f, buf := File{Pkg: sync.Map{}}, bytes.Buffer{}
-		f.Pkg.Store("/d/", []byte("s"))
-		_, err := f.WriteTo(bufio.NewWriter(&buf))
-		assert.EqualError(t, err, "zip: write to directory")
-		f.Pkg.Delete("/d/")
-	}
+	f := File{}
+	buf := bytes.Buffer{}
+	f.XLSX = make(map[string][]byte, 0)
+	f.XLSX["/d/"] = []byte("s")
+	_, err := f.WriteTo(bufio.NewWriter(&buf))
+	assert.EqualError(t, err, "zip: write to directory")
+	delete(f.XLSX, "/d/")
 	// Test file path overflow
-	{
-		f, buf := File{Pkg: sync.Map{}}, bytes.Buffer{}
-		const maxUint16 = 1<<16 - 1
-		f.Pkg.Store(strings.Repeat("s", maxUint16+1), nil)
-		_, err := f.WriteTo(bufio.NewWriter(&buf))
-		assert.EqualError(t, err, "zip: FileHeader.Name too long")
-	}
-	// Test StreamsWriter err
-	{
-		f, buf := File{Pkg: sync.Map{}}, bytes.Buffer{}
-		f.Pkg.Store("s", nil)
-		f.streams = make(map[string]*StreamWriter)
-		file, _ := os.Open("123")
-		f.streams["s"] = &StreamWriter{rawData: bufferedWriter{tmp: file}}
-		_, err := f.WriteTo(bufio.NewWriter(&buf))
-		assert.Nil(t, err)
-	}
-	// Test write with temporary file
-	{
-		f, buf := File{tempFiles: sync.Map{}}, bytes.Buffer{}
-		const maxUint16 = 1<<16 - 1
-		f.tempFiles.Store("s", "")
-		f.tempFiles.Store(strings.Repeat("s", maxUint16+1), "")
-		_, err := f.WriteTo(bufio.NewWriter(&buf))
-		assert.EqualError(t, err, "zip: FileHeader.Name too long")
-	}
-}
-
-func TestClose(t *testing.T) {
-	f := NewFile()
-	f.tempFiles.Store("/d/", "/d/")
-	require.Error(t, f.Close())
+	const maxUint16 = 1<<16 - 1
+	f.XLSX[strings.Repeat("s", maxUint16+1)] = nil
+	_, err = f.WriteTo(bufio.NewWriter(&buf))
+	assert.EqualError(t, err, "zip: FileHeader.Name too long")
 }

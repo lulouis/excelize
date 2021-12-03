@@ -39,7 +39,6 @@ func TestCols(t *testing.T) {
 	if !assert.Equal(t, collectedRows, returnedColumns) {
 		t.FailNow()
 	}
-	assert.NoError(t, f.Close())
 
 	f = NewFile()
 	cells := []string{"C2", "C3", "C4"}
@@ -49,47 +48,48 @@ func TestCols(t *testing.T) {
 	_, err = f.Rows("Sheet1")
 	assert.NoError(t, err)
 
-	f.Sheet.Store("xl/worksheets/sheet1.xml", &xlsxWorksheet{
+	f.Sheet["xl/worksheets/sheet1.xml"] = &xlsxWorksheet{
 		Dimension: &xlsxDimension{
 			Ref: "C2:C4",
 		},
-	})
+	}
 	_, err = f.Rows("Sheet1")
 	assert.NoError(t, err)
 }
 
 func TestColumnsIterator(t *testing.T) {
-	sheetName, colCount, expectedNumCol := "Sheet2", 0, 9
+	const (
+		sheet2         = "Sheet2"
+		expectedNumCol = 9
+	)
+
 	f, err := OpenFile(filepath.Join("test", "Book1.xlsx"))
 	require.NoError(t, err)
 
-	cols, err := f.Cols(sheetName)
+	cols, err := f.Cols(sheet2)
 	require.NoError(t, err)
 
+	var colCount int
 	for cols.Next() {
 		colCount++
-		assert.Equal(t, colCount, cols.CurrentCol())
-		assert.Equal(t, expectedNumCol, cols.TotalCols())
 		require.True(t, colCount <= expectedNumCol, "colCount is greater than expected")
 	}
 	assert.Equal(t, expectedNumCol, colCount)
-	assert.NoError(t, f.Close())
 
-	f, sheetName, colCount, expectedNumCol = NewFile(), "Sheet1", 0, 4
+	f = NewFile()
 	cells := []string{"C2", "C3", "C4", "D2", "D3", "D4"}
 	for _, cell := range cells {
-		assert.NoError(t, f.SetCellValue(sheetName, cell, 1))
+		assert.NoError(t, f.SetCellValue("Sheet1", cell, 1))
 	}
-	cols, err = f.Cols(sheetName)
+	cols, err = f.Cols("Sheet1")
 	require.NoError(t, err)
 
+	colCount = 0
 	for cols.Next() {
 		colCount++
-		assert.Equal(t, colCount, cols.CurrentCol())
-		assert.Equal(t, expectedNumCol, cols.TotalCols())
 		require.True(t, colCount <= 4, "colCount is greater than expected")
 	}
-	assert.Equal(t, expectedNumCol, colCount)
+	assert.Equal(t, 4, colCount)
 }
 
 func TestColsError(t *testing.T) {
@@ -99,7 +99,6 @@ func TestColsError(t *testing.T) {
 	}
 	_, err = f.Cols("SheetN")
 	assert.EqualError(t, err, "sheet SheetN is not exist")
-	assert.NoError(t, f.Close())
 }
 
 func TestGetColsError(t *testing.T) {
@@ -109,24 +108,26 @@ func TestGetColsError(t *testing.T) {
 	}
 	_, err = f.GetCols("SheetN")
 	assert.EqualError(t, err, "sheet SheetN is not exist")
-	assert.NoError(t, f.Close())
 
 	f = NewFile()
-	f.Sheet.Delete("xl/worksheets/sheet1.xml")
-	f.Pkg.Store("xl/worksheets/sheet1.xml", []byte(`<worksheet><sheetData><row r="A"><c r="2" t="str"><v>B</v></c></row></sheetData></worksheet>`))
+	delete(f.Sheet, "xl/worksheets/sheet1.xml")
+	f.XLSX["xl/worksheets/sheet1.xml"] = []byte(`<worksheet><sheetData><row r="A"><c r="2" t="str"><v>B</v></c></row></sheetData></worksheet>`)
 	f.checked = nil
 	_, err = f.GetCols("Sheet1")
 	assert.EqualError(t, err, `strconv.Atoi: parsing "A": invalid syntax`)
 
-	f.Pkg.Store("xl/worksheets/sheet1.xml", []byte(`<worksheet><sheetData><row r="2"><c r="A" t="str"><v>B</v></c></row></sheetData></worksheet>`))
+	f = NewFile()
+	delete(f.Sheet, "xl/worksheets/sheet1.xml")
+	f.XLSX["xl/worksheets/sheet1.xml"] = []byte(`<worksheet><sheetData><row r="2"><c r="A" t="str"><v>B</v></c></row></sheetData></worksheet>`)
+	f.checked = nil
 	_, err = f.GetCols("Sheet1")
 	assert.EqualError(t, err, `cannot convert cell "A" to coordinates: invalid cell name "A"`)
 
 	f = NewFile()
 	cols, err := f.Cols("Sheet1")
 	assert.NoError(t, err)
-	cols.totalRows = 2
-	cols.totalCols = 2
+	cols.totalRow = 2
+	cols.totalCol = 2
 	cols.curCol = 1
 	cols.sheetXML = []byte(`<worksheet><sheetData><row r="1"><c r="A" t="str"><v>A</v></c></row></sheetData></worksheet>`)
 	_, err = cols.Rows()
@@ -137,30 +138,20 @@ func TestColsRows(t *testing.T) {
 	f := NewFile()
 	f.NewSheet("Sheet1")
 
-	_, err := f.Cols("Sheet1")
+	cols, err := f.Cols("Sheet1")
 	assert.NoError(t, err)
 
 	assert.NoError(t, f.SetCellValue("Sheet1", "A1", 1))
-	f.Sheet.Store("xl/worksheets/sheet1.xml", &xlsxWorksheet{
+	f.Sheet["xl/worksheets/sheet1.xml"] = &xlsxWorksheet{
 		Dimension: &xlsxDimension{
 			Ref: "A1:A1",
 		},
-	})
+	}
 
-	f = NewFile()
-	f.Pkg.Store("xl/worksheets/sheet1.xml", nil)
-	_, err = f.Cols("Sheet1")
-	if !assert.NoError(t, err) {
-		t.FailNow()
-	}
-	f = NewFile()
-	cols, err := f.Cols("Sheet1")
-	if !assert.NoError(t, err) {
-		t.FailNow()
-	}
-	_, err = cols.Rows()
-	assert.NoError(t, err)
 	cols.stashCol, cols.curCol = 0, 1
+	cols, err = f.Cols("Sheet1")
+	assert.NoError(t, err)
+
 	// Test if token is nil
 	cols.sheetXML = nil
 	_, err = cols.Rows()
@@ -240,17 +231,15 @@ func TestOutlineLevel(t *testing.T) {
 	assert.Equal(t, uint8(4), level)
 	assert.NoError(t, err)
 
-	level, err = f.GetColOutlineLevel("SheetN", "A")
+	level, err = f.GetColOutlineLevel("Shee2", "A")
 	assert.Equal(t, uint8(0), level)
-	assert.EqualError(t, err, "sheet SheetN is not exist")
+	assert.EqualError(t, err, "sheet Shee2 is not exist")
 
 	assert.NoError(t, f.SetColWidth("Sheet2", "A", "D", 13))
-	assert.EqualError(t, f.SetColWidth("Sheet2", "A", "D", MaxColumnWidth+1), ErrColumnWidth.Error())
-
 	assert.NoError(t, f.SetColOutlineLevel("Sheet2", "B", 2))
 	assert.NoError(t, f.SetRowOutlineLevel("Sheet1", 2, 7))
-	assert.EqualError(t, f.SetColOutlineLevel("Sheet1", "D", 8), ErrOutlineLevel.Error())
-	assert.EqualError(t, f.SetRowOutlineLevel("Sheet1", 2, 8), ErrOutlineLevel.Error())
+	assert.EqualError(t, f.SetColOutlineLevel("Sheet1", "D", 8), "invalid outline level")
+	assert.EqualError(t, f.SetRowOutlineLevel("Sheet1", 2, 8), "invalid outline level")
 	// Test set row outline level on not exists worksheet.
 	assert.EqualError(t, f.SetRowOutlineLevel("SheetN", 1, 4), "sheet SheetN is not exist")
 	// Test get row outline level on not exists worksheet.
@@ -282,12 +271,10 @@ func TestOutlineLevel(t *testing.T) {
 	f, err = OpenFile(filepath.Join("test", "Book1.xlsx"))
 	assert.NoError(t, err)
 	assert.NoError(t, f.SetColOutlineLevel("Sheet2", "B", 2))
-	assert.NoError(t, f.Close())
 }
 
 func TestSetColStyle(t *testing.T) {
 	f := NewFile()
-	assert.NoError(t, f.SetCellValue("Sheet1", "B2", "Hello"))
 	style, err := f.NewStyle(`{"fill":{"type":"pattern","color":["#94d3a2"],"pattern":1}}`)
 	assert.NoError(t, err)
 	// Test set column style on not exists worksheet.
@@ -311,12 +298,12 @@ func TestColWidth(t *testing.T) {
 	assert.Equal(t, float64(12), width)
 	assert.NoError(t, err)
 	width, err = f.GetColWidth("Sheet1", "C")
-	assert.Equal(t, defaultColWidth, width)
+	assert.Equal(t, float64(64), width)
 	assert.NoError(t, err)
 
 	// Test set and get column width with illegal cell coordinates.
 	width, err = f.GetColWidth("Sheet1", "*")
-	assert.Equal(t, defaultColWidth, width)
+	assert.Equal(t, float64(64), width)
 	assert.EqualError(t, err, `invalid column name "*"`)
 	assert.EqualError(t, f.SetColWidth("Sheet1", "*", "B", 1), `invalid column name "*"`)
 	assert.EqualError(t, f.SetColWidth("Sheet1", "A", "*", 1), `invalid column name "*"`)
@@ -338,7 +325,7 @@ func TestInsertCol(t *testing.T) {
 
 	fillCells(f, sheet1, 10, 10)
 
-	assert.NoError(t, f.SetCellHyperLink(sheet1, "A5", "https://github.com/xuri/excelize", "External"))
+	assert.NoError(t, f.SetCellHyperLink(sheet1, "A5", "https://github.com/360EntSecGroup-Skylar/excelize", "External"))
 	assert.NoError(t, f.MergeCell(sheet1, "A1", "C3"))
 
 	assert.NoError(t, f.AutoFilter(sheet1, "A2", "B2", `{"column":"B","expression":"x != blanks"}`))
@@ -356,7 +343,7 @@ func TestRemoveCol(t *testing.T) {
 
 	fillCells(f, sheet1, 10, 15)
 
-	assert.NoError(t, f.SetCellHyperLink(sheet1, "A5", "https://github.com/xuri/excelize", "External"))
+	assert.NoError(t, f.SetCellHyperLink(sheet1, "A5", "https://github.com/360EntSecGroup-Skylar/excelize", "External"))
 	assert.NoError(t, f.SetCellHyperLink(sheet1, "C5", "https://github.com", "External"))
 
 	assert.NoError(t, f.MergeCell(sheet1, "A1", "B1"))
@@ -372,8 +359,4 @@ func TestRemoveCol(t *testing.T) {
 	assert.EqualError(t, f.RemoveCol("SheetN", "B"), "sheet SheetN is not exist")
 
 	assert.NoError(t, f.SaveAs(filepath.Join("test", "TestRemoveCol.xlsx")))
-}
-
-func TestConvertColWidthToPixels(t *testing.T) {
-	assert.Equal(t, -11.0, convertColWidthToPixels(-1))
 }

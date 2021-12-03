@@ -17,7 +17,7 @@ var trueExpectedDateList = []dateTest{
 	{0.0000000000000000, time.Date(1899, time.December, 30, 0, 0, 0, 0, time.UTC)},
 	{25569.000000000000, time.Unix(0, 0).UTC()},
 
-	// Expected values extracted from real spreadsheet
+	// Expected values extracted from real xlsx file
 	{1.0000000000000000, time.Date(1900, time.January, 1, 0, 0, 0, 0, time.UTC)},
 	{1.0000115740740740, time.Date(1900, time.January, 1, 0, 0, 1, 0, time.UTC)},
 	{1.0006944444444446, time.Date(1900, time.January, 1, 0, 1, 0, 0, time.UTC)},
@@ -33,7 +33,6 @@ var excelTimeInputList = []dateTest{
 	{60.0, time.Date(1900, 2, 28, 0, 0, 0, 0, time.UTC)},
 	{61.0, time.Date(1900, 3, 1, 0, 0, 0, 0, time.UTC)},
 	{41275.0, time.Date(2013, 1, 1, 0, 0, 0, 0, time.UTC)},
-	{44450.3333333333, time.Date(2021, time.September, 11, 8, 0, 0, 0, time.UTC)},
 	{401769.0, time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)},
 }
 
@@ -56,7 +55,7 @@ func TestTimeToExcelTime_Timezone(t *testing.T) {
 	for i, test := range trueExpectedDateList {
 		t.Run(fmt.Sprintf("TestData%d", i+1), func(t *testing.T) {
 			_, err := timeToExcelTime(test.GoValue.In(location))
-			assert.NoError(t, err)
+			assert.EqualError(t, err, "only UTC time expected")
 		})
 	}
 }
@@ -66,19 +65,6 @@ func TestTimeFromExcelTime(t *testing.T) {
 		t.Run(fmt.Sprintf("TestData%d", i+1), func(t *testing.T) {
 			assert.Equal(t, test.GoValue, timeFromExcelTime(test.ExcelValue, false))
 		})
-	}
-	for hour := 0; hour < 24; hour++ {
-		for min := 0; min < 60; min++ {
-			for sec := 0; sec < 60; sec++ {
-				date := time.Date(2021, time.December, 30, hour, min, sec, 0, time.UTC)
-				excelTime, err := timeToExcelTime(date)
-				assert.NoError(t, err)
-				dateOut := timeFromExcelTime(excelTime, false)
-				assert.EqualValues(t, hour, dateOut.Hour())
-				assert.EqualValues(t, min, dateOut.Minute())
-				assert.EqualValues(t, sec, dateOut.Second())
-			}
-		}
 	}
 }
 
@@ -99,5 +85,5 @@ func TestExcelDateToTime(t *testing.T) {
 	}
 	// Check error case
 	_, err := ExcelDateToTime(-1, false)
-	assert.EqualError(t, err, "invalid date value -1.000000, negative values are not supported")
+	assert.EqualError(t, err, "invalid date value -1.000000, negative values are not supported supported")
 }
